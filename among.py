@@ -23,6 +23,8 @@ def load_words(filename):
 
 
 def matches_pattern(word, guess, flat_pattern):
+    guess = guess.lower()
+    word = word.lower()
     for i in range(len(guess)):
         g_letter = guess[i]
         p = flat_pattern[i]
@@ -90,5 +92,6 @@ if __name__ == "__main__":
         guess_word = input("Enter a guess word: ").strip()
     
     # Load valid words and process the guess
-    words = load_words("valid-wordle-words.txt")
+    # words = load_words("valid-wordle-words.txt")
+    words = load_words("five_letter_words.txt")
     among_us_generator(guess_word, CREWMATE_PATTERN, words)
