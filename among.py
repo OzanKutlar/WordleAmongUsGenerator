@@ -26,15 +26,24 @@ def matches_pattern(word, guess, flat_pattern):
     for i in range(len(guess)):
         g_letter = guess[i]
         p = flat_pattern[i]
-        if p == "green" and word[i] == g_letter:
-            return True
-        if p == "yellow" and (word[i] != g_letter and g_letter in word):
-            return True
-        if p == "blank" and g_letter not in word:
-            return True
-    return False
-
-def among_us_generator(guess, crewmate_pattern, words):
+        
+        # ✅ GREEN: Correct letter in correct position
+        if p == "green" and word[i] != g_letter:
+            return False
+        
+        # ✅ YELLOW: Letter exists in word but NOT in current position
+        if p == "yellow" and (word[i] == g_letter or g_letter not in word or (word.count(g_letter) < guess[:(i+1)].count(g_letter))):
+            return False
+        
+        # ✅ BLANK: Letter does NOT exist in word at all
+        if p == "blank" and g_letter in word:
+            return False
+    
+    return True
+    
+    
+    
+def among_us_generator(actual_word, crewmate_pattern, words):
     spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     idx = 0
     
@@ -47,20 +56,20 @@ def among_us_generator(guess, crewmate_pattern, words):
         sys.stdout.flush()
         
         found_word = False
-        for word in words:
+        for guessed_word in words:
             # Update spinner
             sys.stdout.write(f"\rSearching... {spinner[idx % len(spinner)]}   ")
             sys.stdout.flush()
             idx += 1
             # time.sleep(0.01)
             
-            if matches_pattern(word, guess, row):
+            if matches_pattern(actual_word, guessed_word, row):
                 # Clear the spinner line
                 sys.stdout.write("\r" + " " * 20 + "\r")
                 sys.stdout.flush()
                 
                 # Print the match with the current row pattern
-                sys.stdout.write(f"{''.join(EMOJIS[c] for c in row)} : {word}\n")
+                sys.stdout.write(f"{''.join(EMOJIS[c] for c in row)} : {guessed_word}\n")
                 sys.stdout.flush()
                 
                 found_word = True
