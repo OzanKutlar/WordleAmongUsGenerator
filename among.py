@@ -1,72 +1,85 @@
-import time
 import sys
+import time
 
-# Emoji mappings
+# Emoji mapping
 EMOJIS = {
-    "blank": "⬛",   # Gray square
-    "yellow": "🟨", # Yellow square
-    "green": "🟩"   # Green square
+    "blank": "⬛",
+    "yellow": "🟨",
+    "green": "🟩"
 }
+
+# Fixed crewmate pattern
+CREWMATE_PATTERN = [
+    ["blank", "yellow", "yellow", "yellow", "blank"],
+    ["yellow", "yellow", "blank",  "blank",  "blank"],
+    ["yellow", "yellow", "yellow", "yellow", "blank"],
+    ["green",  "yellow", "blank",  "yellow", "green"],
+    ["green",  "green",  "green",  "green",  "green"]
+]
 
 def load_words(filename):
     with open(filename, "r") as f:
         return [line.strip().lower() for line in f if line.strip()]
 
-def swap_yellow_green(pattern):
-    return [
-        "green" if p == "yellow" else
-        "yellow" if p == "green" else
-        p
-        for p in pattern
-    ]
 
-def matches_pattern(word, guess, pattern):
-    for i, (g_letter, p) in enumerate(zip(guess, pattern)):
-        if p == "green" and word[i] != g_letter:
-            return False
-        if p == "yellow":
-            if word[i] == g_letter or g_letter not in word:
-                return False
-        if p == "blank" and g_letter not in [guess[j] for j, status in enumerate(pattern) if status in ("green", "yellow")]:
-            if g_letter in word:
-                return False
-    return True
+def matches_pattern(word, guess, flat_pattern):
+    for i in range(len(guess)):
+        g_letter = guess[i]
+        p = flat_pattern[i]
+        if p == "green" and word[i] == g_letter:
+            return True
+        if p == "yellow" and (word[i] != g_letter and g_letter in word):
+            return True
+        if p == "blank" and g_letter not in word:
+            return True
+    return False
 
-def among_us_generator(guess, pattern, words):
-    print("Searching for amongus word...")
-    time.sleep(0.8)
-
-    # Animation for searching
-    dots = [".  ", ".. ", "...", ".. ", ".  "]
-    for d in dots:
-        sys.stdout.write(f"\rSearching for amongus word{d}")
+def among_us_generator(guess, crewmate_pattern, words):
+    spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    idx = 0
+    
+    # Process each row of the pattern
+    for row_index, row in enumerate(crewmate_pattern):
+        # Try both original and swapped patterns for this row
+        
+        # Start searching for this row
+        sys.stdout.write("Searching...   ")
         sys.stdout.flush()
-        time.sleep(0.4)
-
-    matches = []
-    for word in words:
-        if matches_pattern(word, guess, pattern):
-            matches.append(word)
-            break
-
-    if not matches:
-        swapped = swap_yellow_green(pattern)
+        
+        found_word = False
         for word in words:
-            if matches_pattern(word, guess, swapped):
-                matches.append(word)
+            # Update spinner
+            sys.stdout.write(f"\rSearching... {spinner[idx % len(spinner)]}   ")
+            sys.stdout.flush()
+            idx += 1
+            # time.sleep(0.01)
+            
+            if matches_pattern(word, guess, row):
+                # Clear the spinner line
+                sys.stdout.write("\r" + " " * 20 + "\r")
+                sys.stdout.flush()
+                
+                # Print the match with the current row pattern
+                sys.stdout.write(f"{''.join(EMOJIS[c] for c in row)} : {word}\n")
+                sys.stdout.flush()
+                
+                found_word = True
                 break
-
-    # Show result
-    if matches:
-        chosen = matches[0]
-        pattern_to_show = pattern if matches_pattern(chosen, guess, pattern) else swap_yellow_green(pattern)
-        emoji_line = "".join(EMOJIS[p] for p in pattern_to_show)
-        sys.stdout.write(f"\r{emoji_line} : {chosen}\n")
-    else:
-        sys.stdout.write("\rNo matches found.\n")
+        
+        # If no word found for this row, continue to next row
+        if not found_word:
+            sys.stdout.write("\r" + " " * 20 + "\r")
+            sys.stdout.write(f"{''.join(EMOJIS[c] for c in row)} : (no match found)\n")
+    
+    sys.stdout.write("Search complete.\n")
 
 if __name__ == "__main__":
-    word_list = load_words("valid-wordle-words.txt")
-    guess_word = "cigar"
-    pattern = ["blank", "yellow", "yellow", "yellow", "blank"]
-    among_us_generator(guess_word, pattern, word_list)
+    # Check if command-line argument was provided
+    if len(sys.argv) > 1:
+        guess_word = sys.argv[1].strip()
+    else:
+        guess_word = input("Enter a guess word: ").strip()
+    
+    # Load valid words and process the guess
+    words = load_words("valid-wordle-words.txt")
+    among_us_generator(guess_word, CREWMATE_PATTERN, words)
