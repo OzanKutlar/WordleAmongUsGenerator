@@ -47,13 +47,17 @@ def compute_pattern(guess: str, target: str) -> tuple[int, ...]:
 def filter_words(words: list[str], guess: str, pattern: tuple[int, ...]) -> list[str]:
     return [w for w in words if compute_pattern(guess, w) == pattern]
 
-def create_word_text(word: str, colors: list[int]) -> Text:
-    text = Text()
-    for char, color in zip(word, colors):
-        color_bg = {0: "#666666", 1: "#b59f3b", 2: "#538d4e"}[color]
-        text.append(f" {char} ", style=f"bold white on {color_bg}")
-        text.append(" ")
-    return text
+class SubmittedGuessRow(Static):
+    def __init__(self, word: str, colors: list[int]):
+        super().__init__()
+        self.word = word
+        self.guess_colors = colors
+
+    def compose(self) -> ComposeResult:
+        color_map = {0: "tile-gray", 1: "tile-yellow", 2: "tile-green"}
+        with Horizontal(classes="wordle-row"):
+            for i, char in enumerate(self.word):
+                yield Label(char, classes=f"wordle-tile {color_map[self.guess_colors[i]]}")
 
 # --- Messages ---
 class GuessSubmitted(Message):
@@ -82,36 +86,40 @@ class GuessEditor(Static, can_focus=True):
         self.word = word.upper()
         self.guess_colors = [0, 0, 0, 0, 0]
         self.cursor_idx = 0
+        self.tiles = []
 
-    def render(self) -> Text:
-        text = Text()
-        for i, char in enumerate(self.word):
-            color_bg = {0: "#666666", 1: "#b59f3b", 2: "#538d4e"}[self.guess_colors[i]]
-            style = f"bold white on {color_bg}"
+    def compose(self) -> ComposeResult:
+        with Horizontal(classes="wordle-row"):
+            for char in self.word:
+                lbl = Label(char, classes="wordle-tile tile-gray")
+                self.tiles.append(lbl)
+                yield lbl
+        yield Label("←/→: Move Cursor  |  Enter: Cycle Color  |  Space: Confirm", classes="help-text")
+
+    def on_mount(self):
+        self._update_tiles()
+
+    def _update_tiles(self):
+        color_map = {0: "tile-gray", 1: "tile-yellow", 2: "tile-green"}
+        for i, tile in enumerate(self.tiles):
+            tile.remove_class("tile-gray", "tile-yellow", "tile-green", "tile-cursor")
+            tile.add_class(color_map[self.guess_colors[i]])
             if i == self.cursor_idx:
-                style += " underline"
-            text.append(f" {char} ", style=style)
-            text.append(" ")
-        
-        text.append("\n\n")
-        text.append(" ←/→ : Move Cursor\n", style="dim")
-        text.append(" Enter : Cycle Color\n", style="dim")
-        text.append(" Space : Confirm Guess", style="bold green")
-        return text
+                tile.add_class("tile-cursor")
 
     def action_move_left(self):
         if self.cursor_idx > 0:
             self.cursor_idx -= 1
-            self.refresh()
+            self._update_tiles()
 
     def action_move_right(self):
         if self.cursor_idx < 4:
             self.cursor_idx += 1
-            self.refresh()
+            self._update_tiles()
 
     def action_cycle_color(self):
         self.guess_colors[self.cursor_idx] = (self.guess_colors[self.cursor_idx] + 1) % 3
-        self.refresh()
+        self._update_tiles()
 
     def action_submit(self):
         self.post_message(GuessSubmitted(self.word, self.guess_colors, self))
@@ -120,47 +128,21 @@ class GuessEditor(Static, can_focus=True):
 class WordleSolverApp(App):
     TITLE = "Wordle Solver"
     CSS = """
-    Screen {
-        layout: horizontal;
-    }
-    .column {
-        width: 1fr;
-        height: 100%;
-        border: solid #555555;
-        padding: 1;
-        margin: 0 1;
-    }
-    .column-title {
-        text-style: bold;
-        text-align: center;
-        padding-bottom: 1;
-        width: 100%;
-        border-bottom: solid #555555;
-        margin-bottom: 1;
-    }
-    #possible-list, #elimination-list {
-        height: 1fr;
-        overflow-y: auto;
-    }
-    #guesses-list {
-        height: 1fr;
-        overflow-y: auto;
-        border-bottom: solid #555555;
-        margin-bottom: 1;
-        padding-bottom: 1;
-    }
-    #elim-status {
-        text-style: italic;
-        color: yellow;
-        margin-bottom: 1;
-    }
-    #word-input {
-        width: 100%;
-        margin-bottom: 1;
-    }
-    #editor-container {
-        height: auto;
-    }
+    Screen { layout: horizontal; }
+    .column { width: 1fr; height: 100%; border: solid #555555; padding: 1; margin: 0 1; }
+    .column-title { text-style: bold; text-align: center; padding-bottom: 1; width: 100%; border-bottom: solid #555555; margin-bottom: 1; }
+    #possible-list, #elimination-list, #guesses-list { height: 1fr; overflow-y: auto; }
+    #guesses-list { border-bottom: solid #555555; margin-bottom: 1; padding-bottom: 1; }
+    #elim-status { text-style: italic; color: yellow; margin-bottom: 1; }
+    #word-input { width: 100%; margin-bottom: 1; }
+    #editor-container { height: auto; align: center top; margin-top: 1; }
+    .wordle-row { layout: horizontal; height: 3; margin-bottom: 1; align: center middle; }
+    .wordle-tile { width: 7; height: 3; content-align: center middle; text-style: bold; margin: 0 1; border: solid #222222; }
+    .tile-gray { background: #3a3a3c; }
+    .tile-yellow { background: #b59f3b; color: white; }
+    .tile-green { background: #538d4e; color: white; }
+    .tile-cursor { border: solid white; }
+    .help-text { width: 100%; text-align: center; margin-top: 1; color: #888888; }
     """
 
     def compose(self) -> ComposeResult:
@@ -189,7 +171,7 @@ class WordleSolverApp(App):
         self.query_one("#word-input").focus()
         
         await self.update_possible_words()
-        self.compute_eliminations(self.possible_words, self.all_words)
+        self.query_one("#elim-status").update("Awaiting first guess...")
 
     async def update_possible_words(self):
         vs = self.query_one("#possible-list")
@@ -230,8 +212,7 @@ class WordleSolverApp(App):
         inp.display = True
         inp.focus()
         
-        guess_text = create_word_text(event.guess, event.guess_colors)
-        await self.query_one("#guesses-list").mount(Label(guess_text))
+        await self.query_one("#guesses-list").mount(SubmittedGuessRow(event.guess, event.guess_colors))
         
         self.possible_words = filter_words(self.possible_words, event.guess, tuple(event.guess_colors))
         await self.update_possible_words()
