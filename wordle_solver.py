@@ -80,13 +80,13 @@ class GuessEditor(Static, can_focus=True):
     def __init__(self, word: str):
         super().__init__()
         self.word = word.upper()
-        self.colors = [0, 0, 0, 0, 0]
+        self.guess_colors = [0, 0, 0, 0, 0]
         self.cursor_idx = 0
 
     def render(self) -> Text:
         text = Text()
         for i, char in enumerate(self.word):
-            color_bg = {0: "#666666", 1: "#b59f3b", 2: "#538d4e"}[self.colors[i]]
+            color_bg = {0: "#666666", 1: "#b59f3b", 2: "#538d4e"}[self.guess_colors[i]]
             style = f"bold white on {color_bg}"
             if i == self.cursor_idx:
                 style += " underline"
@@ -110,11 +110,11 @@ class GuessEditor(Static, can_focus=True):
             self.refresh()
 
     def action_cycle_color(self):
-        self.colors[self.cursor_idx] = (self.colors[self.cursor_idx] + 1) % 3
+        self.guess_colors[self.cursor_idx] = (self.guess_colors[self.cursor_idx] + 1) % 3
         self.refresh()
 
     def action_submit(self):
-        self.post_message(GuessSubmitted(self.word, self.colors, self))
+        self.post_message(GuessSubmitted(self.word, self.guess_colors, self))
 
 # --- Main App ---
 class WordleSolverApp(App):
