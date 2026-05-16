@@ -57,10 +57,10 @@ def create_word_text(word: str, colors: list[int]) -> Text:
 
 # --- Messages ---
 class GuessSubmitted(Message):
-    def __init__(self, guess: str, colors: list[int], control: Static):
+    def __init__(self, guess: str, colors: list[int], editor: Static):
         self.guess = guess
-        self.colors = colors
-        self.control = control
+        self.guess_colors = colors
+        self.editor = editor
         super().__init__()
 
 class EliminationResults(Message):
@@ -224,16 +224,16 @@ class WordleSolverApp(App):
 
     @on(GuessSubmitted)
     async def handle_guess_submitted(self, event: GuessSubmitted):
-        await event.control.remove()
+        await event.editor.remove()
         
         inp = self.query_one("#word-input")
         inp.display = True
         inp.focus()
         
-        guess_text = create_word_text(event.guess, event.colors)
+        guess_text = create_word_text(event.guess, event.guess_colors)
         await self.query_one("#guesses-list").mount(Label(guess_text))
         
-        self.possible_words = filter_words(self.possible_words, event.guess, tuple(event.colors))
+        self.possible_words = filter_words(self.possible_words, event.guess, tuple(event.guess_colors))
         await self.update_possible_words()
         
         self.query_one("#elim-status").update("Calculating expected info...")
