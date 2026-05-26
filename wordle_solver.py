@@ -77,8 +77,8 @@ class GuessEditor(Static, can_focus=True):
     BINDINGS = [
         ("left", "move_left", "Left"),
         ("right", "move_right", "Right"),
-        ("enter", "cycle_color", "Color"),
-        ("space", "submit", "Submit"),
+        ("space", "cycle_color", "Color"),
+        ("enter", "submit", "Submit"),
     ]
 
     def __init__(self, word: str):
@@ -94,7 +94,7 @@ class GuessEditor(Static, can_focus=True):
                 lbl = Label(char, classes="wordle-tile tile-gray")
                 self.tiles.append(lbl)
                 yield lbl
-        yield Label("←/→: Move Cursor  |  Enter: Cycle Color  |  Space: Confirm", classes="help-text")
+        yield Label("←/→: Move Cursor  |  Space: Cycle Color  |  Enter: Confirm", classes="help-text")
 
     def on_mount(self):
         self._update_tiles()
