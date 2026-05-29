@@ -167,6 +167,7 @@ class WordleSolverApp(App):
     async def on_mount(self):
         self.all_words = load_words()
         self.possible_words = self.all_words.copy()
+        self.guess_count = 0
         
         self.query_one("#word-input").focus()
         
@@ -217,10 +218,14 @@ class WordleSolverApp(App):
         self.possible_words = filter_words(self.possible_words, event.guess, tuple(event.guess_colors))
         await self.update_possible_words()
         
-        self.query_one("#elim-status").update("Calculating expected info...")
+        self.guess_count += 1
         await self.query_one("#elimination-list").remove_children()
         
-        self.compute_eliminations(self.possible_words, self.all_words)
+        if self.guess_count < 2:
+            self.query_one("#elim-status").update("Awaiting second guess...")
+        else: 
+            self.query_one("#elim-status").update("Calculating expected info...")
+            self.compute_eliminations(self.possible_words, self.all_words)
 
     @work(thread=True, exclusive=True)
     def compute_eliminations(self, possible: list[str], all_words: list[str]):
