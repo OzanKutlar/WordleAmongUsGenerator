@@ -81,10 +81,14 @@ class GuessEditor(Static, can_focus=True):
         ("enter", "submit", "Submit"),
     ]
 
-    def __init__(self, word: str):
+    def __init__(self, word: str, known_greens: list[str | None] = None):
         super().__init__()
         self.word = word.upper()
         self.guess_colors = [0, 0, 0, 0, 0]
+        if known_greens:
+            for i, char in enumerate(self.word):
+                if known_greens[i] == char:
+                    self.guess_colors[i] = 2
         self.cursor_idx = 0
         self.tiles = []
 
@@ -168,6 +172,7 @@ class WordleSolverApp(App):
         self.all_words = load_words()
         self.possible_words = self.all_words.copy()
         self.guess_count = 0
+        self.known_greens = [None, None, None, None, None]
         
         self.query_one("#word-input").focus()
         
@@ -200,7 +205,7 @@ class WordleSolverApp(App):
         event.input.value = ""
         event.input.display = False
         
-        editor = GuessEditor(word)
+        editor = GuessEditor(word, known_greens=self.known_greens)
         container = self.query_one("#editor-container")
         container.mount(editor)
         editor.focus()
@@ -214,6 +219,11 @@ class WordleSolverApp(App):
         inp.focus()
         
         await self.query_one("#guesses-list").mount(SubmittedGuessRow(event.guess, event.guess_colors))
+        
+        # Keep track of known green letters
+        for i, color in enumerate(event.guess_colors):
+            if color == 2:
+                self.known_greens[i] = event.guess[i]
         
         self.possible_words = filter_words(self.possible_words, event.guess, tuple(event.guess_colors))
         await self.update_possible_words()
