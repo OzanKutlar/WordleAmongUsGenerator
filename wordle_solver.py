@@ -5,7 +5,7 @@ from collections import defaultdict
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Header, Footer, Input, Label, Static
+from textual.widgets import Button, Header, Footer, Input, Label, Static
 from textual.message import Message
 from textual.worker import get_current_worker
 
@@ -131,6 +131,9 @@ class GuessEditor(Static, can_focus=True):
 # --- Main App ---
 class WordleSolverApp(App):
     TITLE = "Wordle Solver"
+    BINDINGS = [
+        ("ctrl+z", "undo_last_guess", "Undo Last Guess"),
+    ]
     CSS = """
     Screen { layout: horizontal; }
     .column { width: 1fr; height: 100%; border: solid #555555; padding: 1; margin: 0 1; }
@@ -139,6 +142,7 @@ class WordleSolverApp(App):
     #guesses-list { border-bottom: solid #555555; margin-bottom: 1; padding-bottom: 1; }
     #elim-status { text-style: italic; color: yellow; margin-bottom: 1; }
     #word-input { width: 100%; margin-bottom: 1; }
+    #undo-btn { width: 100%; margin-bottom: 1; }
     #editor-container { height: auto; align: center top; margin-top: 1; }
     .wordle-row { layout: horizontal; height: 3; margin-bottom: 1; align: center middle; }
     .wordle-tile { width: 7; height: 3; content-align: center middle; text-style: bold; margin: 0 1; border: solid #222222; }
@@ -160,18 +164,18 @@ class WordleSolverApp(App):
                 yield Label("Elimination Words", id="col2-title", classes="column-title")
                 yield Label("Loading dictionary...", id="elim-status")
                 yield VerticalScroll(id="elimination-list")
-                
             with Vertical(classes="column"):
                 yield Label("Your Guesses", id="col3-title", classes="column-title")
                 yield VerticalScroll(id="guesses-list")
                 yield Input(placeholder="Type 5-letter word + Enter", id="word-input", max_length=5)
+                yield Button("Undo Last Guess", id="undo-btn", variant="warning")
                 yield Vertical(id="editor-container")
         yield Footer()
-
     async def on_mount(self):
         self.all_words = load_words()
         self.possible_words = self.all_words.copy()
         self.guess_count = 0
+        self.guess_history = []
         self.known_greens = [None, None, None, None, None]
         
         self.query_one("#word-input").focus()
@@ -209,7 +213,6 @@ class WordleSolverApp(App):
         container = self.query_one("#editor-container")
         container.mount(editor)
         editor.focus()
-
     @on(GuessSubmitted)
     async def handle_guess_submitted(self, event: GuessSubmitted):
         await event.editor.remove()
@@ -218,6 +221,7 @@ class WordleSolverApp(App):
         inp.display = True
         inp.focus()
         
+        self.guess_history.append((event.guess, event.guess_colors))
         await self.query_one("#guesses-list").mount(SubmittedGuessRow(event.guess, event.guess_colors))
         
         # Keep track of known green letters
@@ -267,6 +271,48 @@ class WordleSolverApp(App):
             
         results.sort(reverse=True)
         self.post_message(EliminationResults(results[:100]))
+    @on(Button.Pressed, "#undo-btn")
+    async def handle_undo_pressed(self):
+        await self.action_undo_last_guess()
+
+    async def action_undo_last_guess(self):
+        container = self.query_one("#editor-container")
+        if container.children:
+            await container.remove_children()
+            inp = self.query_one("#word-input")
+            inp.display = True
+            inp.focus()
+            return
+
+        if not self.guess_history:
+            self.notify("No guesses to undo", severity="information")
+            return
+
+        self.guess_history.pop()
+        self.guess_count = len(self.guess_history)
+
+        guesses_list = self.query_one("#guesses-list")
+        if guesses_list.children:
+            await guesses_list.children[-1].remove()
+
+        self.possible_words = self.all_words.copy()
+        self.known_greens = [None, None, None, None, None]
+        for word, colors in self.guess_history:
+            for i, color in enumerate(colors):
+                if color == 2:
+                    self.known_greens[i] = word[i]
+            self.possible_words = filter_words(self.possible_words, word, tuple(colors))
+
+        await self.update_possible_words()
+
+        await self.query_one("#elimination-list").remove_children()
+        if self.guess_count == 0:
+            self.query_one("#elim-status").update("Awaiting first guess...")
+        elif self.guess_count == 1:
+            self.query_one("#elim-status").update("Awaiting second guess...")
+        else:
+            self.query_one("#elim-status").update("Calculating expected info...")
+            self.compute_eliminations(self.possible_words, self.all_words)
 
     @on(EliminationResults)
     async def handle_elimination_results(self, event: EliminationResults):
